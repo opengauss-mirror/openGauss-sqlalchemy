@@ -1,39 +1,222 @@
 # openGauss-sqlalchemy
 
-#### 介绍
-{**以下是 Gitee 平台说明，您可以替换此简介**
-Gitee 是 OSCHINA 推出的基于 Git 的代码托管平台（同时支持 SVN）。专为开发者提供稳定、高效、安全的云端软件开发协作平台
-无论是个人、团队、或是企业，都能够用 Gitee 实现代码托管、项目管理、协作开发。企业项目请看 [https://gitee.com/enterprises](https://gitee.com/enterprises)}
+适配SQLAlchemy框架的OpenGauss方言库。
 
-#### 软件架构
-软件架构说明
+项目已通过SQLAlchemy社区用例集。
 
 
-#### 安装教程
+## 运行依赖
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+- psycopg2 for opengauss
 
-#### 使用说明
+    从下列地址下载并安装到运行环境中
+    > https://gitee.com/opengauss/openGauss-connector-python-psycopg2
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+    或
 
-#### 参与贡献
-
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+    > https://github.com/opengauss-mirror/openGauss-connector-python-psycopg2
 
 
-#### 特技
+## 安装
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+```
+>>> python setup.py install
+```
+
+## 使用方法
+
+在OpenGauss中创建一个数据库。
+
+```
+>>> import sqlalchemy as sa
+# 访问集中式模式DB
+>>> sa.create_engine('opengauss://username:password@host:port/database_name')
+# 或
+>>> sa.create_engine('opengauss+psycopg2://username:password@host:port/database_name')
+# 访问分布式模式DB
+>>> sa.create_engine('opengauss+dc_psycopg2://username:password@host:port/database_name')
+# 或
+>>> sa.create_engine('opengauss+dc_psycopg2://username:password@/database_name?host=hostA:portA&host=hostB:portB')
+```
+
+OpenGauss的数据库开发指南详见 [OpenGauss DeveloperGuide](https://docs.opengauss.org/zh/docs/latest/docs/Developerguide/Developerguide.html)。
+
+## OpenGauss特性的使用方式（集中式和分布式）
+
+### 索引
+
+- Index with `USING method`
+```
+tbl = Table("testtbl", m, Column("data", String))
+Index("test_idx1", tbl.c.data, opengauss_using="btree")
+```
+
+- Index with column expression
+```
+tbl = Table(
+    "testtbl",
+    m,
+    Column("data", String),
+    Column("data2", Integer, key="d2"),
+)
+
+Index(
+    "test_idx1",
+    tbl.c.data,
+    tbl.c.d2,
+    opengauss_ops={"data": "text_pattern_ops", "d2": "int4_ops"},
+)
+```
+
+- Index with `LOCAL`, only available for index on a partitioned table
+```
+tbl = Table(
+    "testtbl",
+    m,
+    Column("data", Integer),
+    opengauss_partition_by="RANGE (data) ..."
+)
+Index("test_idx1", tbl.c.data, opengauss_local=[""])
+
+Index(
+    "test_idx2",
+    tbl.c.data,
+    opengauss_local=[
+        "PARTITION data_index1",
+        "PARTITION data_index2 TABLESPACE example3",
+    ]
+)
+```
+
+- Index with `WITH`
+```
+tbl = Table("testtbl", m, Column("data", String))
+Index("test_idx1", tbl.c.data, opengauss_with={"fillfactor": 50})
+```
+
+- Index with `TABLESPACE`
+```
+tbl = Table("testtbl", m, Column("data", String))
+Index("test_idx1", tbl.c.data, opengauss_tablespace="sometablespace")
+```
+
+- Index with `WHERE`, unsupported for index on a partitioned table
+```
+tbl = Table("testtbl", m, Column("data", Integer))
+Index(
+    "test_idx1",
+    tbl.c.data,
+    opengauss_where=and_(tbl.c.data > 5, tbl.c.data < 10),
+)
+```
+
+### 表
+
+- Table with `WITH ({storage_parameter = value})`
+```
+Table("some_table", ..., opengauss_with={"storage_parameter": "value"})
+```
+
+- Table with `ON COMMIT`
+```
+Table("some_talbe", ..., prefixes=["TEMPORARY"], opengauss_on_commit="PRESERVE ROWS")
+```
+
+- Table with `COMPRESS`
+```
+Table("some_talbe", ..., opengauss_with={"ORIENTATION": "COLUMN"}, opengauss_compress=True)
+```
+
+- Table with `TABLESPACE tablespace_name`
+```
+Table("some_talbe", ..., opengauss_tablespace="tablespace_name")
+```
+
+- Table with `PARTITION BY`
+```
+Table("some_talbe", ..., opengauss_partition_by="RANGE(column_name) "
+        "(PARTITION P1 VALUES LESS THAN(10), "
+        "PARTITION P2 VALUES LESS THAN(MAXVALUE))")
+```
+
+- Table with `ENABLE ROW MOVEMENT`
+```
+Table("some_talbe", ..., opengauss_partition_by="RANGE(column_name) ...",
+    opengauss_enable_row_movement=True)
+```
+
+## OpenGauss特性的使用方式（集中式）
+
+### 索引
+
+- Index with `CONCURRENTLY`
+```
+tbl = Table("testtbl", m, Column("data", Integer))
+Index("test_idx1", tbl.c.data, opengauss_concurrently=True)
+```
+
+## OpenGauss特性的使用方式（分布式）
+
+### 表
+
+- Table with `DISTRIBUTE BY`
+```
+Table("some_table", ..., opengauss_distribute_by="HASH(column_name)")
+```
+NOTE: table without distributable columns will be set with "DISTRIBUTE BY REPLICATION"
+
+- Table with `TO GROUP`
+```
+Table("some_table", ..., opengauss_to="GROUP group_name")
+```
+
+
+## 发布指南
+
+### 构建 python wheel格式
+```
+>>> pip install wheel
+>>> python setup.py bdist_wheel
+```
+
+### 本地测试
+
+1. 设置环境变量 `export LD_LIBRARY_PATH=` 和 `export PYTHONPATH=` 的值为测试环境中 `psycopg2` 包所在的目录.
+2. 安装OpenGauss并修改数据库配置, 具体步骤见 "安装并配置OpenGauss调测环境".
+3. 执行命令 `tox -e py38`.
+
+
+### 安装并配置OpenGauss调测环境
+
+1. 添加OpenGauss的操作系统用户 ```>>> useradd omm -g dbgrp```
+2. 修改OpenGauss目录的用户和用户组 ```>>> chown omm:dbgrp ${db_dir} -R```
+3. 切换到新的系统用户 ```>>> su - omm```
+4. 安装OpenGauss ```>>> sh install.sh -w ${db_password} -p 37200```
+5. 启动OpenGauss ```>>> gs_ctl start -D ${db_dir}/data/single_node/```
+6. 登录OpenGauss ```>>> gsql -d postgres -p 37200```
+7. 创建数据库用户、测试数据库和测试模式
+```
+openGauss=# create user scott identified by 'Tiger123';
+openGauss=# create database test with owner=scott encoding='utf8' template=template0;
+openGauss=# GRANT ALL PRIVILEGES TO scott;
+openGauss=# ALTER DATABASE test SET default_text_search_config = 'pg_catalog.english';
+openGauss=# \c test
+test=# create schema test_schema AUTHORIZATION scott;
+test=# create schema test_schema_2 AUTHORIZATION scott;
+test=# \q
+```
+8. 修改OpenGauss配置
+```
+>>> gs_guc set -D ${db_dir}/data/single_node/ -c "ssl=off"
+>>> gs_guc set -D ${db_dir}/data/single_node/ -c "max_prepared_transactions = 100"
+>>> gs_guc reload -D ${db_dir}/data/single_node/ -h "local all scott sha256"
+>>> gs_guc reload -D ${db_dir}/data/single_node/ -h "host all scott 127.0.0.1/32 sha256"
+>>> gs_guc reload -D ${db_dir}/data/single_node/ -h "host all scott 0.0.0.0/0 sha256"
+>>> gs_ctl stop -D ${db_dir}/data/single_node/
+>>> gs_tl start -D ${db_dir}/data/single_node/
+```
+9. 启用SQL日志记录（可选）
+```
+>>> gs_guc set -D ${db_dir}/data/single_node/ -c "log_min_error_statement = error"
+>>> gs_guc set -D ${db_dir}/data/single_node/ -c "log_statement = 'all'"
+```
