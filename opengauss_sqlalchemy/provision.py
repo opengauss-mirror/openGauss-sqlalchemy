@@ -1,8 +1,8 @@
-# opengauss_sqlalchemy/provision.py
+# -*- coding: utf-8 -*-
 # Copyright (C) 2005-2022 the SQLAlchemy authors and contributors
 # <see AUTHORS file>
-# This source file has been modified by Huawei.
-# Copyright (C) 2021-2022 Huawei.
+#
+# Copyright (C) 2021-2022 Huawei Technologies Co.,Ltd.
 #
 # This module is part of SQLAlchemy and is released under
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
@@ -121,7 +121,6 @@ def prepare_for_drop_tables(config, connection):
 
     result = connection.exec_driver_sql(
         "select pid, state, wait_event_type, query "
-        # "select pg_terminate_backend(pid), state, wait_event_type "
         "from pg_stat_activity where "
         "usename=current_user "
         "and datname=current_database() and state='idle in transaction' "

@@ -1,4 +1,12 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
+# Copyright (C) 2005-2022 the SQLAlchemy authors and contributors
+# <see AUTHORS file>
+#
+# Copyright (C) 2021-2022 Huawei Technologies Co.,Ltd.
+#
+# This module is part of SQLAlchemy and is released under
+# the MIT License: https://www.opensource.org/licenses/mit-license.php
+
 import operator
 
 import sqlalchemy as sa
