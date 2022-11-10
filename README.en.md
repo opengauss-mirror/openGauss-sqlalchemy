@@ -19,6 +19,10 @@ This project has been tested with test suites of SQLAlchemy.
 ## Installation
 
 ```
+# From pypi
+>>> python -m pip install opengauss-sqlalchemy
+
+# From source code
 >>> python setup.py install
 ```
 
@@ -174,7 +178,7 @@ Table("some_table", ..., opengauss_to="GROUP group_name")
 
 ### Build python wheel
 ```
->>> pip install wheel
+>>> python -m pip install wheel
 >>> python setup.py bdist_wheel
 ```
 
@@ -188,7 +192,7 @@ Table("some_table", ..., opengauss_to="GROUP group_name")
 ### Steps to install and config centralized opengauss for testing
 
 1. Add OS user for opengauss ```>>> useradd omm -g dbgrp```
-2. Change owner of opengass dir ```>>> chown omm:dbgrp ${db_dir} -R```
+2. Change owner of opengauss dir ```>>> chown omm:dbgrp ${db_dir} -R```
 3. Switch to user omm ```>>> su - omm```
 4. Install opengauss ```>>> sh install.sh -w ${db_password} -p 37200```
 5. Start opengauss ```>>> gs_ctl start -D ${db_dir}/data/single_node/```

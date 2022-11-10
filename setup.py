@@ -8,7 +8,7 @@ from setuptools import setup
 with open(os.path.join(os.path.dirname(__file__), "opengauss_sqlalchemy", "__init__.py")) as fd:
     VERSION = re.compile(r'.*__version__ = "(.*?)"', re.S).match(fd.read()).group(1)
 
-long_description = (Path(__file__).parent/ "README.md").read_text()
+long_description = (Path(__file__).parent / "README.md").read_text()
 
 
 setup(

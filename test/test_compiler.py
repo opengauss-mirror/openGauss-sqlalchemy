@@ -474,7 +474,7 @@ class DDLCompilerTest(fixtures.TestBase, AssertsCompiledSQL):
         )
         self.assert_compile(
             schema.CreateTable(tbl),
-             "CREATE TABLE atable (id INTEGER) WITH (ORIENTATION = COLUMN) COMPRESS",
+            "CREATE TABLE atable (id INTEGER) WITH (ORIENTATION = COLUMN) COMPRESS",
         )
 
     def test_create_table_partition_by_list(self):
