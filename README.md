@@ -20,6 +20,10 @@
 ## 安装
 
 ```
+# 从pypi安装
+>>> python -m pip install opengauss-sqlalchemy
+
+# 从本地源码安装
 >>> python setup.py install
 ```
 
@@ -175,7 +179,7 @@ Table("some_table", ..., opengauss_to="GROUP group_name")
 
 ### 构建 python wheel格式
 ```
->>> pip install wheel
+>>> python -m pip install wheel
 >>> python setup.py bdist_wheel
 ```
 

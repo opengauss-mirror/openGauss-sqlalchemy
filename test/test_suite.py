@@ -73,9 +73,9 @@ class LongNameBlowoutTest(_LongNameBlowoutTest):
         assert len(actual_name) > 255
 
         if reflected_name is not None:
-            overlap = actual_name[0 : len(reflected_name)]
+            overlap = actual_name[0: len(reflected_name)]
             if len(overlap) < len(actual_name):
-                eq_(overlap[0:-5], reflected_name[0 : len(overlap) - 5])
+                eq_(overlap[0:-5], reflected_name[0: len(overlap) - 5])
             else:
                 eq_(overlap, reflected_name)
 
