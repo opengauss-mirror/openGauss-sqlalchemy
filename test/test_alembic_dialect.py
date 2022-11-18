@@ -15,7 +15,7 @@ from sqlalchemy.testing import fixtures
 from opengauss_sqlalchemy import psycopg2
 
 
-class AlebicDialectTest(fixtures.TestBase):
+class AlembicDialectTest(fixtures.TestBase):
 
     def test_configure_migration_context(self):
         context = migration.MigrationContext.configure(
