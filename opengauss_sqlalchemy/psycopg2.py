@@ -6,12 +6,72 @@
 #
 # This module is part of SQLAlchemy and is released under
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
-
-from sqlalchemy.dialects.postgresql.psycopg2 import PGCompiler_psycopg2, PGDialect_psycopg2
 from sqlalchemy import schema
 from sqlalchemy import util
+from sqlalchemy.dialects.postgresql.psycopg2 import PGCompiler_psycopg2, PGDialect_psycopg2
+from sqlalchemy.ext.compiler import compiles
 
 from opengauss_sqlalchemy.base import OpenGaussDDLCompiler, OpenGaussIdentifierPreparer
+
+# If alembic is installed, register an alias in its dialect mapping.
+try:
+    import alembic
+except ImportError:
+    pass
+else:
+    from alembic.ddl import postgresql
+    from alembic.ddl.base import RenameTable
+
+    compiles(RenameTable, 'opengauss')(postgresql.visit_rename_table)
+    compiles(postgresql.PostgresqlColumnType, "opengauss")(postgresql.visit_column_type)
+
+
+    class OpenGaussImpl(postgresql.PostgresqlImpl):
+        __dialect__ = 'opengauss'
+
+# If sqlalchemy-migrate is installed, register there too.
+try:
+    from migrate.changeset.databases.visitor import DIALECTS as migrate_dialects
+except ImportError:
+    pass
+else:
+    from migrate.changeset import ansisql
+
+
+    class OGColumnGenerator(OpenGaussDDLCompiler, ansisql.ANSIColumnGenerator):
+        """OpenGauss column generator implementation."""
+        pass
+
+
+    class OGColumnDropper(ansisql.ANSIColumnDropper):
+        """OpenGauss column dropper implementation."""
+        pass
+
+
+    class OGSchemaChanger(ansisql.ANSISchemaChanger):
+        """OpenGauss schema changer implementation."""
+        pass
+
+
+    class OGConstraintGenerator(ansisql.ANSIConstraintGenerator):
+        """OpenGauss constraint generator implementation."""
+        pass
+
+
+    class OGConstraintDropper(ansisql.ANSIConstraintDropper):
+        """OpenGauss constaint dropper implementation."""
+        pass
+
+
+    class OGDialect(ansisql.ANSIDialect):
+        columngenerator = OGColumnGenerator
+        columndropper = OGColumnDropper
+        schemachanger = OGSchemaChanger
+        constraintgenerator = OGConstraintGenerator
+        constraintdropper = OGConstraintDropper
+
+
+    migrate_dialects["opengauss"] = OGDialect
 
 
 class OpenGaussCompiler_psycopg2(PGCompiler_psycopg2):
