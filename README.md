@@ -16,6 +16,26 @@
 
     > https://github.com/opengauss-mirror/openGauss-connector-python-psycopg2
 
+### 注意：
+使用psycopg2 for opengauss会导致Sqlalchemy2.0部分autoescape相关测试用例不通过。
+
+若需要使用autoescape相关功能，请保证环境中正确安装openGauss，并且通过修改变量LD_LIBRARY_PATH保证pg_config来自openGauss.
+
+```
+# 配置环境变量
+$ export LD_LIBRARY_PATH=/home/omm/openGauss-server/mppdb_temp_install/lib:$LD_LIBRARY_PATH
+
+$ which pg_config
+# 预期结果
+'/home/omm/openGauss-server/mppdb_temp_install/bin/pg_config'
+
+# 删除psycopg2 for opengauss
+$ rm -rf /home/omm/.local/lib/python3.8/site-packages/psycopg2
+
+# 若已经安装完成opengauss-sqlalchemy，重新安装
+>>> python setup.py install
+```
+
 
 ## 安装
 

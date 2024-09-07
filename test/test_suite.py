@@ -25,7 +25,10 @@ from sqlalchemy.testing.suite.test_results import ServerSideCursorsTest as _Serv
 from sqlalchemy.testing.suite.test_select import FetchLimitOffsetTest as _FetchLimitOffsetTest
 from sqlalchemy.testing.suite.test_select import JoinTest as _JoinTest
 from sqlalchemy.testing.suite.test_unicode_ddl import UnicodeSchemaTest as _UnicodeSchemaTest
-
+from sqlalchemy.engine import ObjectScope, ObjectKind, Inspector
+from sqlalchemy.testing import mock, assert_raises_message
+from sqlalchemy.testing.suite.test_dialect import IsolationLevelTest as _IsolationLevelTest
+from sqlalchemy.testing.suite.test_types import TrueDivTest as _TrueDivTest
 
 class CTETest(_CTETest):
     @classmethod
@@ -79,6 +82,34 @@ class LongNameBlowoutTest(_LongNameBlowoutTest):
             else:
                 eq_(overlap, reflected_name)
 
+def _multi_combination(fn):
+    schema = testing.combinations(
+        None,
+        (
+            lambda: config.test_schema,
+            testing.requires.schemas,
+        ),
+        argnames="schema",
+    )
+    scope = testing.combinations(
+        ObjectScope.DEFAULT,
+        ObjectScope.TEMPORARY,
+        ObjectScope.ANY,
+        argnames="scope",
+    )
+    kind = testing.combinations(
+        ObjectKind.TABLE,
+        ObjectKind.VIEW,
+        ObjectKind.MATERIALIZED_VIEW,
+        ObjectKind.ANY,
+        ObjectKind.ANY_VIEW,
+        ObjectKind.TABLE | ObjectKind.VIEW,
+        ObjectKind.TABLE | ObjectKind.MATERIALIZED_VIEW,
+        argnames="kind",
+    )
+    filter_names = testing.combinations(True, False, argnames="use_filter")
+
+    return schema(scope(kind(filter_names(fn))))
 
 class ComponentReflectionTest(_ComponentReflectionTest):
     @classmethod
@@ -89,32 +120,30 @@ class ComponentReflectionTest(_ComponentReflectionTest):
             schema_prefix = ""
 
         if testing.requires.self_referential_foreign_keys.enabled:
-            users = Table(
-                "users",
-                metadata,
-                Column("user_id", sa.INT, primary_key=True),
-                Column("test1", sa.CHAR(5), nullable=False),
-                Column("test2", sa.Float(5), nullable=False),
-                Column(
-                    "parent_user_id",
-                    sa.Integer,
-                    sa.ForeignKey(
-                        "%susers.user_id" % schema_prefix, name="user_id_fk"
-                    ),
+            parent_id_args = (
+                ForeignKey(
+                    "%susers.user_id" % schema_prefix, name="user_id_fk"
                 ),
-                schema=schema,
-                test_needs_fk=True,
             )
         else:
-            users = Table(
-                "users",
-                metadata,
-                Column("user_id", sa.INT, primary_key=True),
-                Column("test1", sa.CHAR(5), nullable=False),
-                Column("test2", sa.Float(5), nullable=False),
-                schema=schema,
-                test_needs_fk=True,
-            )
+            parent_id_args = ()
+
+        users = Table(
+            "users",
+            metadata,
+            Column("user_id", sa.INT, primary_key=True),
+            Column("test1", sa.CHAR(5), nullable=False),
+            Column("test2", sa.Float(), nullable=False),
+            Column("parent_user_id", sa.Integer, *parent_id_args),
+            sa.CheckConstraint(
+                "test2 > 0",
+                name="zz_test2_gt_zero",
+                comment="users check constraint",
+            ),
+            sa.CheckConstraint("test2 <= 1000"),
+            schema=schema,
+            test_needs_fk=True,
+        )
 
         if testing.requires.foreign_keys.enabled:
             # distributed opengauss does NOT support foreign keys
@@ -125,9 +154,28 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                 Column(
                     "address_id",
                     sa.Integer,
-                    sa.ForeignKey("%semail_addresses.address_id" % schema_prefix),
+                    ForeignKey(
+                        "%semail_addresses.address_id" % schema_prefix,
+                        name="zz_email_add_id_fg",
+                        comment="di fk comment",
+                    ),
                 ),
-                Column("data", sa.String(30)),
+                Column(
+                    "id_user",
+                    sa.Integer,
+                    ForeignKey("%susers.user_id" % schema_prefix),
+                ),
+                Column("data", sa.String(30), unique=True),
+                sa.CheckConstraint(
+                    "address_id > 0 AND address_id < 1000",
+                    name="address_id_gt_zero",
+                ),
+                sa.UniqueConstraint(
+                    "address_id",
+                    "dingaling_id",
+                    name="zz_dingalings_multiple",
+                    comment="di unique comment",
+                ),
                 schema=schema,
                 test_needs_fk=True,
             )
@@ -135,11 +183,11 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                 "email_addresses",
                 metadata,
                 Column("address_id", sa.Integer),
-                Column(
-                    "remote_user_id", sa.Integer, sa.ForeignKey(users.c.user_id)
+                Column("remote_user_id", sa.Integer, ForeignKey(users.c.user_id)),
+                Column("email_address", sa.String(20), index=True),
+                sa.PrimaryKeyConstraint(
+                    "address_id", name="email_ad_pk", comment="ea pk comment"
                 ),
-                Column("email_address", sa.String(20)),
-                sa.PrimaryKeyConstraint("address_id", name="email_ad_pk"),
                 schema=schema,
                 test_needs_fk=True,
             )
@@ -152,7 +200,21 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                     "address_id",
                     sa.Integer,
                 ),
-                Column("data", sa.String(30)),
+                Column(
+                    "id_user",
+                    sa.Integer,
+                ),
+                Column("data", sa.String(30), unique=True),
+                sa.CheckConstraint(
+                    "address_id > 0 AND address_id < 1000",
+                    name="address_id_gt_zero",
+                ),
+                sa.UniqueConstraint(
+                    "address_id",
+                    "dingaling_id",
+                    name="zz_dingalings_multiple",
+                    comment="di unique comment",
+                ),
                 schema=schema,
                 test_needs_fk=True,
             )
@@ -160,11 +222,11 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                 "email_addresses",
                 metadata,
                 Column("address_id", sa.Integer),
-                Column(
-                    "remote_user_id", sa.Integer
+                Column("remote_user_id", sa.Integer),
+                Column("email_address", sa.String(20), index=True),
+                sa.PrimaryKeyConstraint(
+                    "address_id", name="email_ad_pk", comment="ea pk comment"
                 ),
-                Column("email_address", sa.String(20)),
-                sa.PrimaryKeyConstraint("address_id", name="email_ad_pk"),
                 schema=schema,
                 test_needs_fk=True,
             )
@@ -178,8 +240,16 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                 sa.String(20),
                 comment=r"""Comment types type speedily ' " \ '' Fun!""",
             ),
+            Column("d3", sa.String(42), comment="Comment\nwith\rescapes"),
             schema=schema,
             comment=r"""the test % ' " \ table comment""",
+        )
+        Table(
+            "no_constraints",
+            metadata,
+            Column("data", sa.String(20)),
+            schema=schema,
+            comment="no\nconstraints\rhas\fescaped\vcomment",
         )
 
         if testing.requires.cross_schema_fk_reflection.enabled:
@@ -224,7 +294,10 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                 )
 
         if testing.requires.index_reflection.enabled:
-            cls.define_index(metadata, users)
+            Index("users_t_idx", users.c.test1, users.c.test2, unique=True)
+            Index(
+                "users_all_idx", users.c.user_id, users.c.test2, users.c.test1
+            )
 
             if not schema:
                 # test_needs_fk is at the moment to force MySQL InnoDB
@@ -243,21 +316,23 @@ class ComponentReflectionTest(_ComponentReflectionTest):
                     test_needs_fk=True,
                 )
 
-                if testing.requires.indexes_with_ascdesc.enabled:
+                if (
+                    testing.requires.indexes_with_ascdesc.enabled
+                    and testing.requires.reflect_indexes_with_ascdesc.enabled
+                ):
                     Index("noncol_idx_nopk", noncol_idx_test_nopk.c.q.desc())
                     Index("noncol_idx_pk", noncol_idx_test_pk.c.q.desc())
 
         if testing.requires.view_column_reflection.enabled:
             cls.define_views(metadata, schema)
+
         if not schema and testing.requires.temp_table_reflection.enabled:
             cls.define_temp_tables(metadata)
 
     @classmethod
     def define_temp_tables(cls, metadata):
         kw = temp_table_keyword_args(config, config.db)
-        table_name = get_temp_table_name(
-            config, config.db, "user_tmp_%s" % config.ident
-        )
+        table_name = cls.temp_table_name()
         user_tmp = Table(
             table_name,
             metadata,
@@ -271,7 +346,7 @@ class ComponentReflectionTest(_ComponentReflectionTest):
             # unique constraints created against temp tables in different
             # databases.
             # https://www.arbinada.com/en/node/1645
-            sa.UniqueConstraint("name", name="user_tmp_uq_%s" % config.ident),
+            sa.UniqueConstraint("name", name=f"user_tmp_uq_{config.ident}"),
             sa.Index("user_tmp_ix", "foo"),
             **kw
         )
@@ -355,6 +430,7 @@ class ComponentReflectionTest(_ComponentReflectionTest):
             dupe = refl.pop("duplicates_index", None)
             if dupe:
                 names_that_duplicate_index.add(dupe)
+            eq_(refl.pop("comment", None), None)
             eq_(orig, refl)
 
         reflected_metadata = MetaData()
@@ -369,19 +445,168 @@ class ComponentReflectionTest(_ComponentReflectionTest):
         # "unique constraints" are actually unique indexes (with possible
         # exception of a unique that is a dupe of another one in the case
         # of Oracle).  make sure # they aren't duplicated.
-        idx_names = set([idx.name for idx in reflected.indexes])
-        uq_names = set(
-            [
-                uq.name
-                for uq in reflected.constraints
-                if isinstance(uq, sa.UniqueConstraint)
-            ]
-        ).difference(["unique_c_a_b"])
+        idx_names = {idx.name for idx in reflected.indexes}
+        uq_names = {
+            uq.name
+            for uq in reflected.constraints
+            if isinstance(uq, sa.UniqueConstraint)
+        }.difference(["unique_c_a_b"])
 
         assert not idx_names.intersection(uq_names)
         if names_that_duplicate_index:
             eq_(names_that_duplicate_index, idx_names)
             eq_(uq_names, set())
+
+        no_cst = self.tables.no_constraints.name
+        eq_(inspector.get_unique_constraints(no_cst, schema=schema), [])
+
+    def exp_columns(
+        self,
+        schema=None,
+        scope=ObjectScope.ANY,
+        kind=ObjectKind.ANY,
+        filter_names=None,
+    ):
+        def col(
+            name, auto=False, default=mock.ANY, comment=None, nullable=True
+        ):
+            res = {
+                "name": name,
+                "autoincrement": auto,
+                "type": mock.ANY,
+                "default": default,
+                "comment": comment,
+                "nullable": nullable,
+            }
+            if auto == "omit":
+                res.pop("autoincrement")
+            return res
+
+        def pk(name, **kw):
+            kw = {"auto": True, "default": mock.ANY, "nullable": False, **kw}
+            return col(name, **kw)
+
+        materialized = {
+            (schema, "dingalings_v"): [
+                col("dingaling_id", auto="omit", nullable=mock.ANY),
+                col("address_id"),
+                col("id_user"),
+                col("data"),
+            ]
+        }
+        views = {
+            (schema, "email_addresses_v"): [
+                col("address_id", auto="omit", nullable=mock.ANY),
+                col("remote_user_id"),
+                col("email_address"),
+            ],
+            (schema, "users_v"): [
+                col("user_id", auto="omit", nullable=mock.ANY),
+                col("test1", nullable=mock.ANY),
+                col("test2", nullable=mock.ANY),
+                col("parent_user_id"),
+            ],
+            (schema, "user_tmp_v"): [
+                col("id", auto="omit", nullable=mock.ANY),
+                col("name"),
+                col("foo"),
+            ],
+        }
+        self._resolve_views(views, materialized)
+        tables = {
+            (schema, "users"): [
+                pk("user_id"),
+                col("test1", nullable=False),
+                col("test2", nullable=False),
+                col("parent_user_id"),
+            ],
+            (schema, "dingalings"): [
+                pk("dingaling_id"),
+                col("address_id"),
+                col("id_user"),
+                col("data"),
+            ],
+            (schema, "email_addresses"): [
+                pk("address_id"),
+                col("remote_user_id"),
+                col("email_address"),
+            ],
+            (schema, "comment_test"): [
+                pk("id", comment="id comment"),
+                col("data", comment="data % comment"),
+                col(
+                    "d2",
+                    comment=r"""Comment types type speedily ' " \ '' Fun!""",
+                ),
+                col("d3", comment="Comment\nwith\rescapes"),
+            ],
+            (schema, "no_constraints"): [col("data")],
+            (schema, "local_table"): [pk("id"), col("data"), col("remote_id")],
+            (schema, "remote_table"): [pk("id"), col("local_id"), col("data")],
+            (schema, "remote_table_2"): [pk("id"), col("data")],
+            (schema, "noncol_idx_test_nopk"): [col("q")],
+            (schema, "noncol_idx_test_pk"): [pk("id"), col("q")],
+            (schema, self.temp_table_name()): [
+                pk("id",  nullable=True, auto=False),
+                col("name",  nullable=True, auto=False),
+                col("foo",  nullable=True, auto=False),
+            ],
+        }
+        res = self._resolve_kind(kind, tables, views, materialized)
+        res = self._resolve_names(schema, scope, filter_names, res)
+        return res
+
+    @property
+    def _required_column_keys(self):
+        return {"name", "type", "nullable", "default"}
+
+    def exp_pks(
+            self,
+            schema=None,
+            scope=ObjectScope.ANY,
+            kind=ObjectKind.ANY,
+            filter_names=None,
+    ):
+        def pk(*cols, name=mock.ANY, comment=None):
+            return {
+                "constrained_columns": list(cols),
+                "name": name,
+                "comment": comment,
+            }
+
+        empty = pk(name=None)
+        if testing.requires.materialized_views_reflect_pk.enabled:
+            materialized = {(schema, "dingalings_v"): pk("dingaling_id")}
+        else:
+            materialized = {(schema, "dingalings_v"): empty}
+        views = {
+            (schema, "email_addresses_v"): empty,
+            (schema, "users_v"): empty,
+            (schema, "user_tmp_v"): empty,
+        }
+        self._resolve_views(views, materialized)
+        tables = {
+            (schema, "users"): pk("user_id"),
+            (schema, "dingalings"): pk("dingaling_id"),
+            (schema, "email_addresses"): pk(
+                "address_id", name="email_ad_pk", comment="ea pk comment"
+            ),
+            (schema, "comment_test"): pk("id"),
+            (schema, "no_constraints"): empty,
+            (schema, "local_table"): pk("id"),
+            (schema, "remote_table"): pk("id"),
+            (schema, "remote_table_2"): pk("id"),
+            (schema, "noncol_idx_test_nopk"): empty,
+            (schema, "noncol_idx_test_pk"): pk("id"),
+            (schema, self.temp_table_name()): pk(name=None),
+        }
+        if not testing.requires.reflects_pk_names.enabled:
+            for val in tables.values():
+                if val["name"] is not None:
+                    val["name"] = mock.ANY
+        res = self._resolve_kind(kind, tables, views, materialized)
+        res = self._resolve_names(schema, scope, filter_names, res)
+        return res
 
 
 class CompositeKeyReflectionTest(_CompositeKeyReflectionTest):
@@ -504,10 +729,92 @@ class ComponentReflectionTestExtra(_ComponentReflectionTestExtra):
         # that can reflect these, since alembic looks for this
         opts = insp.get_foreign_keys("table")[0]["options"]
 
-        eq_(dict((k, opts[k]) for k in opts if opts[k]), {})
+        eq_({k: opts[k] for k in opts if opts[k]}, {})
 
         opts = insp.get_foreign_keys("user")[0]["options"]
         eq_(opts, expected)
+
+    @testing.requires.indexes_with_expressions
+    def test_reflect_expression_based_indexes(self, metadata, connection):
+        t = Table(
+            "t",
+            metadata,
+            Column("x", String(30)),
+            Column("y", String(30)),
+            Column("z", String(30)),
+        )
+
+        Index("t_idx", func.lower(t.c.x), t.c.z, func.lower(t.c.y))
+        long_str = "long string " * 100
+        Index("t_idx_long", func.coalesce(t.c.x, long_str))
+        Index("t_idx_2", t.c.x)
+
+        metadata.create_all(connection)
+
+        insp = inspect(connection)
+
+        expected = [
+            {
+                "name": "t_idx_2",
+                "unique": False,
+                "column_names": ["x"],
+            }
+        ]
+
+        def completeIndex(entry):
+            if testing.requires.index_reflects_included_columns.enabled:
+                entry["include_columns"] = []
+                entry["dialect_options"] = {
+                    f"{connection.engine.name}_include": []
+                }
+            else:
+                entry.setdefault("dialect_options", {})
+
+        class lower_index_str(str):
+            def __eq__(self, other):
+                ol = other.lower()
+                # test that lower and x or y are in the string
+                return "lower" in ol and ("x" in ol or "y" in ol)
+
+        class coalesce_index_str(str):
+            def __eq__(self, other):
+                # test that coalesce and the string is in other
+                return "coalesce" in other.lower() and long_str in other
+
+        if testing.requires.reflect_indexes_with_expressions.enabled:
+            expr_index = {
+                "name": "t_idx",
+                "unique": False,
+                "column_names": [None, "z", None],
+                "expressions": [
+                    lower_index_str("lower(x)"),
+                    "z",
+                    lower_index_str("lower(y)"),
+                ],
+            }
+            expected.insert(0, expr_index)
+
+            expr_index_long = {
+                "name": "t_idx_long",
+                "unique": False,
+                "column_names": [None],
+                "expressions": [
+                    coalesce_index_str(f"coalesce(x, '{long_str}' ::character varying))")
+                ],
+            }
+            expected.append(expr_index_long)
+
+            eq_(insp.get_indexes("t"), expected)
+            m2 = MetaData()
+            t2 = Table("t", m2, autoload_with=connection)
+        else:
+            eq_(insp.get_indexes("t"), expected)
+            m2 = MetaData()
+            t2 = Table("t", m2, autoload_with=connection)
+
+        self.compare_table_index_with_expected(
+            t2, expected, connection.engine.name
+        )
 
 
 class QuotedNameArgumentTest(_QuotedNameArgumentTest):
@@ -738,21 +1045,21 @@ class UnicodeSchemaTest(_UnicodeSchemaTest):
         global t1, t2, t3
 
         t1 = Table(
-            u("unitable1"),
+            "unitable1",
             metadata,
-            Column(u("méil"), Integer, primary_key=True),
-            Column(ue("\u6e2c\u8a66"), Integer),
+            Column("méil", Integer, primary_key=True),
+            Column("\u6e2c\u8a66", Integer),
             test_needs_fk=True,
         )
         if testing.requires.foreign_keys.enabled:
             t2 = Table(
-                u("Unitéble2"),
+                "Unitéble2",
                 metadata,
-                Column(u("méil"), Integer, primary_key=True, key="a"),
+                Column("méil", Integer, primary_key=True, key="a"),
                 Column(
-                    ue("\u6e2c\u8a66"),
+                    "\u6e2c\u8a66",
                     Integer,
-                    ForeignKey(u("unitable1.méil")),
+                    ForeignKey("unitable1.méil"),
                     key="b",
                 ),
                 test_needs_fk=True,
@@ -760,11 +1067,11 @@ class UnicodeSchemaTest(_UnicodeSchemaTest):
 
         else:
             t2 = Table(
-                u("Unitéble2"),
+                "Unitéble2",
                 metadata,
-                Column(u("méil"), Integer, primary_key=True, key="a"),
+                Column("méil", Integer, primary_key=True, key="a"),
                 Column(
-                    ue("\u6e2c\u8a66"),
+                    "\u6e2c\u8a66",
                     Integer,
                     key="b",
                 ),
@@ -772,30 +1079,30 @@ class UnicodeSchemaTest(_UnicodeSchemaTest):
             )
 
         t3 = Table(
-            ue("\u6e2c\u8a66"),
+            "\u6e2c\u8a66",
             metadata,
             Column(
-                ue("\u6e2c\u8a66_id"),
+                "\u6e2c\u8a66_id",
                 Integer,
                 primary_key=True,
                 autoincrement=False,
             ),
-            Column(ue("unitable1_\u6e2c\u8a66"), Integer),
-            Column(u("Unitéble2_b"), Integer),
-            Column(ue("\u6e2c\u8a66_self"), Integer),
+            Column("unitable1_\u6e2c\u8a66", Integer),
+            Column("Unitéble2_b", Integer),
+            Column("\u6e2c\u8a66_self", Integer),
             test_needs_fk=True,
         )
 
     def test_insert(self, connection):
-        connection.execute(t1.insert(), {u("méil"): 1, ue("\u6e2c\u8a66"): 5})
-        connection.execute(t2.insert(), {u("a"): 1, u("b"): 1})
+        connection.execute(t1.insert(), {"méil": 1, "\u6e2c\u8a66": 5})
+        connection.execute(t2.insert(), {"a": 1, "b": 1})
         connection.execute(
             t3.insert(),
             {
-                ue("\u6e2c\u8a66_id"): 1,
-                ue("unitable1_\u6e2c\u8a66"): 5,
-                u("Unitéble2_b"): 1,
-                ue("\u6e2c\u8a66_self"): 1,
+                "\u6e2c\u8a66_id": 1,
+                "unitable1_\u6e2c\u8a66": 5,
+                "Unitéble2_b": 1,
+                "\u6e2c\u8a66_self": 1,
             },
         )
 
@@ -804,42 +1111,42 @@ class UnicodeSchemaTest(_UnicodeSchemaTest):
         eq_(connection.execute(t3.select()).fetchall(), [(1, 5, 1, 1)])
 
     def test_col_targeting(self, connection):
-        connection.execute(t1.insert(), {u("méil"): 1, ue("\u6e2c\u8a66"): 5})
-        connection.execute(t2.insert(), {u("a"): 1, u("b"): 1})
+        connection.execute(t1.insert(), {"méil": 1, "\u6e2c\u8a66": 5})
+        connection.execute(t2.insert(), {"a": 1, "b": 1})
         connection.execute(
             t3.insert(),
             {
-                ue("\u6e2c\u8a66_id"): 1,
-                ue("unitable1_\u6e2c\u8a66"): 5,
-                u("Unitéble2_b"): 1,
-                ue("\u6e2c\u8a66_self"): 1,
+                "\u6e2c\u8a66_id": 1,
+                "unitable1_\u6e2c\u8a66": 5,
+                "Unitéble2_b": 1,
+                "\u6e2c\u8a66_self": 1,
             },
         )
 
         row = connection.execute(t1.select()).first()
-        eq_(row._mapping[t1.c[u("méil")]], 1)
-        eq_(row._mapping[t1.c[ue("\u6e2c\u8a66")]], 5)
+        eq_(row._mapping[t1.c["méil"]], 1)
+        eq_(row._mapping[t1.c["\u6e2c\u8a66"]], 5)
 
         row = connection.execute(t2.select()).first()
-        eq_(row._mapping[t2.c[u("a")]], 1)
-        eq_(row._mapping[t2.c[u("b")]], 1)
+        eq_(row._mapping[t2.c["a"]], 1)
+        eq_(row._mapping[t2.c["b"]], 1)
 
         row = connection.execute(t3.select()).first()
-        eq_(row._mapping[t3.c[ue("\u6e2c\u8a66_id")]], 1)
-        eq_(row._mapping[t3.c[ue("unitable1_\u6e2c\u8a66")]], 5)
-        eq_(row._mapping[t3.c[u("Unitéble2_b")]], 1)
-        eq_(row._mapping[t3.c[ue("\u6e2c\u8a66_self")]], 1)
+        eq_(row._mapping[t3.c["\u6e2c\u8a66_id"]], 1)
+        eq_(row._mapping[t3.c["unitable1_\u6e2c\u8a66"]], 5)
+        eq_(row._mapping[t3.c["Unitéble2_b"]], 1)
+        eq_(row._mapping[t3.c["\u6e2c\u8a66_self"]], 1)
 
     def test_reflect(self, connection):
-        connection.execute(t1.insert(), {u("méil"): 2, ue("\u6e2c\u8a66"): 7})
-        connection.execute(t2.insert(), {u("a"): 2, u("b"): 2})
+        connection.execute(t1.insert(), {"méil": 2, "\u6e2c\u8a66": 7})
+        connection.execute(t2.insert(), {"a": 2, "b": 2})
         connection.execute(
             t3.insert(),
             {
-                ue("\u6e2c\u8a66_id"): 2,
-                ue("unitable1_\u6e2c\u8a66"): 7,
-                u("Unitéble2_b"): 2,
-                ue("\u6e2c\u8a66_self"): 2,
+                "\u6e2c\u8a66_id": 2,
+                "unitable1_\u6e2c\u8a66": 7,
+                "Unitéble2_b": 2,
+                "\u6e2c\u8a66_self": 2,
             },
         )
 
@@ -848,33 +1155,57 @@ class UnicodeSchemaTest(_UnicodeSchemaTest):
         tt2 = Table(t2.name, meta, autoload_with=connection)
         tt3 = Table(t3.name, meta, autoload_with=connection)
 
-        connection.execute(tt1.insert(), {u("méil"): 1, ue("\u6e2c\u8a66"): 5})
-        connection.execute(tt2.insert(), {u("méil"): 1, ue("\u6e2c\u8a66"): 1})
+        connection.execute(tt1.insert(), {"méil": 1, "\u6e2c\u8a66": 5})
+        connection.execute(tt2.insert(), {"méil": 1, "\u6e2c\u8a66": 1})
         connection.execute(
             tt3.insert(),
             {
-                ue("\u6e2c\u8a66_id"): 1,
-                ue("unitable1_\u6e2c\u8a66"): 5,
-                u("Unitéble2_b"): 1,
-                ue("\u6e2c\u8a66_self"): 1,
+                "\u6e2c\u8a66_id": 1,
+                "unitable1_\u6e2c\u8a66": 5,
+                "Unitéble2_b": 1,
+                "\u6e2c\u8a66_self": 1,
             },
         )
 
         eq_(
-            connection.execute(
-                tt1.select().order_by(desc(u("méil")))
-            ).fetchall(),
+            connection.execute(tt1.select().order_by(desc("méil"))).fetchall(),
             [(2, 7), (1, 5)],
         )
         eq_(
-            connection.execute(
-                tt2.select().order_by(desc(u("méil")))
-            ).fetchall(),
+            connection.execute(tt2.select().order_by(desc("méil"))).fetchall(),
             [(2, 2), (1, 1)],
         )
         eq_(
             connection.execute(
-                tt3.select().order_by(desc(ue("\u6e2c\u8a66_id")))
+                tt3.select().order_by(desc("\u6e2c\u8a66_id"))
             ).fetchall(),
             [(2, 7, 2, 2), (1, 5, 1, 1)],
+        )
+
+
+from sqlalchemy import literal_column, func, select, Integer
+
+class TrueDivTest(_TrueDivTest):
+    @testing.combinations(
+        ("15", "10", 1), ("-15", "5", -3), argnames="left, right, expected"
+    )
+    def test_floordiv_integer(self, connection, left, right, expected):
+        """test #4926"""
+
+        eq_(
+            connection.scalar(
+                select(
+                    func.floor(literal_column(left, type_=Integer()) // literal_column(right, type_=Integer()))
+
+                )
+            ),
+            expected,
+        )
+
+    def test_floordiv_integer_bound(self, connection):
+        """test #4926"""
+
+        eq_(
+           connection.scalar(select(func.floor(literal(15) // literal(10)))),
+            1,
         )

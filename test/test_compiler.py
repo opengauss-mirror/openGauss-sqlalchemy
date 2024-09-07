@@ -377,7 +377,7 @@ class DDLCompilerTest(fixtures.TestBase, AssertsCompiledSQL):
         idx1 = Index("test_idx1", 5 / (tbl.c.x + tbl.c.y))
         self.assert_compile(
             schema.CreateIndex(idx1),
-            "CREATE INDEX test_idx1 ON testtbl ((5 / (x + y)))",
+            "CREATE INDEX test_idx1 ON testtbl ((5 / CAST((x + y) AS NUMERIC)))",
         )
 
     def test_create_index_literals(self):

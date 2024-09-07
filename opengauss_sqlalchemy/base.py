@@ -7,7 +7,7 @@
 # This module is part of SQLAlchemy and is released under
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
 
-from sqlalchemy.dialects.postgresql.base import IDX_USING, PGDDLCompiler, PGIdentifierPreparer
+from sqlalchemy.dialects.postgresql.base import IDX_USING, PGCompiler, PGDDLCompiler, PGIdentifierPreparer
 from sqlalchemy.dialects.postgresql.base import RESERVED_WORDS as _RESERVED_WORDS
 from sqlalchemy.sql import coercions, expression, roles
 from sqlalchemy import types
@@ -51,10 +51,15 @@ RESERVED_WORDS = _RESERVED_WORDS.union(
 )
 
 
+class OpenGaussCompiler(PGCompiler):
+    def get_cte_preamble(self, recursive):
+        return "WITH RECURSIVE"
+
+
 class OpenGaussDDLCompiler(PGDDLCompiler):
     """DDLCompiler for opengauss"""
 
-    def visit_create_index(self, create):
+    def visit_create_index(self, create, **kw):
         preparer = self.preparer
         index = create.element
         self._verify_index_table(index)
@@ -143,7 +148,7 @@ class OpenGaussDDLCompiler(PGDDLCompiler):
 
         return "".join(text_contents)
 
-    def visit_drop_index(self, drop):
+    def visit_drop_index(self, drop, **kw):
         index = drop.element
 
         text_contents = ["\nDROP INDEX "]
