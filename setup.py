@@ -36,7 +36,7 @@ setup(
     ],
     packages=["opengauss_sqlalchemy"],
     include_package_data=True,
-    install_requires=["sqlalchemy<=2.0.23", "psycopg2>=2.9.9"],
+    install_requires=["sqlalchemy<=2.0.23"],
     entry_points={
         "sqlalchemy.dialects": [
             "opengauss = opengauss_sqlalchemy.psycopg2:OpenGaussDialect_psycopg2",
