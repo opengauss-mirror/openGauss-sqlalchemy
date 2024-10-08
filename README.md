@@ -19,21 +19,38 @@
 ### 注意：
 使用psycopg2 for opengauss会导致Sqlalchemy2.0部分autoescape相关测试用例不通过。
 
-若需要使用autoescape相关功能，请保证环境中正确安装openGauss，并且通过修改变量LD_LIBRARY_PATH保证pg_config来自openGauss.
+若需要使用autoescape相关功能，请保证环境中正确安装openGauss，并且通过修改变量LD_LIBRARY_PATH保证pg_config来自openGauss。
 
 ```
 # 配置环境变量
-$ export LD_LIBRARY_PATH=/home/omm/openGauss-server/mppdb_temp_install/lib:$LD_LIBRARY_PATH
+$ export GAUSSHOME=/home/omm/openGauss-server/mppdb_temp_install
+$ export LD_LIBRARY_PATH=$GAUSSHOME/lib:$LD_LIBRARY_PATH
 
 $ which pg_config
 # 预期结果
 '/home/omm/openGauss-server/mppdb_temp_install/bin/pg_config'
 
 # 删除psycopg2 for opengauss
-$ rm -rf /home/omm/.local/lib/python3.8/site-packages/psycopg2
+$ pip install --force-reinstall psycopg2
 
 # 若已经安装完成opengauss-sqlalchemy，重新安装
 >>> python setup.py install
+```
+
+或者安装psycopg2-binary:
+```
+$ pip uninstall psycopg2
+$ pip install psycopg2-binary
+
+# 修改数据库实例下postgresql.conf文件中password_encryption_type = 1
+$ vim /datanode/postgresql.conf
+
+# 重启数据库
+$ gs_ctl restart -D /datanode
+
+修改密码
+$ gsql -d postgres -p <port_num>
+openGauss=# alter user hct with password <yourpassword>;
 ```
 
 

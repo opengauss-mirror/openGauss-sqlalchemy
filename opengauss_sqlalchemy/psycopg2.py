@@ -124,10 +124,10 @@ class OpenGaussDialect_psycopg2(PGDialect_psycopg2):
         extensions = self._psycopg2_extensions
 
         return {
-            "READ COMMITTED": extensions.ISOLATION_LEVEL_READ_COMMITTED,
             "AUTOCOMMIT": extensions.ISOLATION_LEVEL_AUTOCOMMIT,
-            "REPEATABLE READ": extensions.ISOLATION_LEVEL_REPEATABLE_READ,
+            "READ COMMITTED": extensions.ISOLATION_LEVEL_READ_COMMITTED,
             "READ UNCOMMITTED": extensions.ISOLATION_LEVEL_READ_UNCOMMITTED,
+            "REPEATABLE READ": extensions.ISOLATION_LEVEL_REPEATABLE_READ,
             # opengauss does NOT support SERIALIZABLE
         }
 
