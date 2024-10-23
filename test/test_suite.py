@@ -761,15 +761,6 @@ class ComponentReflectionTestExtra(_ComponentReflectionTestExtra):
             }
         ]
 
-        def completeIndex(entry):
-            if testing.requires.index_reflects_included_columns.enabled:
-                entry["include_columns"] = []
-                entry["dialect_options"] = {
-                    f"{connection.engine.name}_include": []
-                }
-            else:
-                entry.setdefault("dialect_options", {})
-
         class lower_index_str(str):
             def __eq__(self, other):
                 ol = other.lower()

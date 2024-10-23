@@ -50,7 +50,7 @@ $ gs_ctl restart -D /datanode
 
 修改密码
 $ gsql -d postgres -p <port_num>
-openGauss=# alter user hct with password <yourpassword>;
+openGauss=# alter user <usrname> with password <yourpassword>;
 ```
 
 

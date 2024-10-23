@@ -56,12 +56,7 @@ class OpenGaussCompiler(PGCompiler):
         return "WITH RECURSIVE"
 
     def visit_on_conflict_do_nothing(self, on_conflict, **kw):
-        target_text = self._on_conflict_target(on_conflict, **kw)
-
-        if target_text:
-            return "ON DUPLICATE KEY UPDATE NOTHING"
-        else:
-            return "ON DUPLICATE KEY UPDATE NOTHING"
+        return "ON DUPLICATE KEY UPDATE NOTHING"
 
     def visit_on_conflict_do_update(self, on_conflict, **kw):
         clause = on_conflict
