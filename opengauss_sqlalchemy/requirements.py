@@ -292,12 +292,26 @@ class Requirements(SuiteRequirements):
     def legacy_isolation_level(self):
         return exclusions.open()
 
-    def get_isolation_levels(self, config):
-        levels = set(config.db.dialect._isolation_lookup)
-        default = "READ COMMITTED"
-        levels.add("AUTOCOMMIT")
+    @property
+    def get_isolation_level_values(self):
+        """target dialect supports the
+        :meth:`_engine.Dialect.get_isolation_level_values`
+        method added in SQLAlchemy 2.0.
 
-        return {"default": default, "supported": levels}
+        """
+
+        def go(config):
+            with config.db.connect() as conn:
+                try:
+                    conn.dialect.get_isolation_level_values(
+                        conn.connection.dbapi_connection
+                    )
+                except NotImplementedError:
+                    return False
+                else:
+                    return True
+
+        return exclusions.only_if(go)
 
     @property
     def autocommit(self):
@@ -419,8 +433,7 @@ class Requirements(SuiteRequirements):
     @property
     def temp_table_names(self):
         """target dialect supports listing of temporary table names"""
-
-        return exclusions.closed()
+        return exclusions.open()
 
     @property
     def temporary_views(self):
@@ -1053,3 +1066,36 @@ class Requirements(SuiteRequirements):
         Use `limit` with `order_by` if you need strict isotonicity.
         """
         return exclusions.only_on(["opengauss+psycopg2"])
+
+    @property
+    def reflect_indexes_with_expressions(self):
+        """target database supports reflection of indexes with
+        SQL expressions."""
+        return exclusions.open()
+
+    @property
+    def index_reflection(self):
+        return exclusions.open()
+
+    @property
+    def indexes_with_ascdesc(self):
+        """target database supports CREATE INDEX with per-column ASC/DESC."""
+        return exclusions.open()
+
+    @property
+    def reflect_indexes_with_ascdesc(self):
+        """target database supports reflecting INDEX with per-column
+        ASC/DESC."""
+        return exclusions.open()
+
+    @property
+    def unique_constraints_reflect_as_index(self):
+        """Target database reflects unique constraints as indexes."""
+
+        return exclusions.open()
+
+    @property
+    def unique_constraints_reflect_as_index(self):
+        """Target database reflects unique constraints as indexes."""
+
+        return exclusions.open()

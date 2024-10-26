@@ -8,10 +8,13 @@
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
 from sqlalchemy import schema
 from sqlalchemy import util
-from sqlalchemy.dialects.postgresql.psycopg2 import PGCompiler_psycopg2, PGDialect_psycopg2
+from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.ext.compiler import compiles
+from collections import defaultdict
+from sqlalchemy.engine.reflection import ReflectionDefaults
+import functools
 
-from opengauss_sqlalchemy.base import OpenGaussDDLCompiler, OpenGaussIdentifierPreparer
+from opengauss_sqlalchemy.base import OpenGaussDDLCompiler, OpenGaussIdentifierPreparer, OpenGaussCompiler
 
 # If alembic is installed, register an alias in its dialect mapping.
 try:
@@ -74,11 +77,6 @@ else:
     migrate_dialects["opengauss"] = OGDialect
 
 
-class OpenGaussCompiler_psycopg2(PGCompiler_psycopg2):
-    def get_cte_preamble(self, recursive):
-        return "WITH RECURSIVE"
-
-
 class OpenGaussDialect_psycopg2(PGDialect_psycopg2):
     name = "opengauss"
     driver = "psycopg2"
@@ -86,7 +84,7 @@ class OpenGaussDialect_psycopg2(PGDialect_psycopg2):
     cte_follows_insert = True
     supports_statement_cache = True
 
-    statement_compiler = OpenGaussCompiler_psycopg2
+    statement_compiler = OpenGaussCompiler
     ddl_compiler = OpenGaussDDLCompiler
     preparer = OpenGaussIdentifierPreparer
 
@@ -123,7 +121,7 @@ class OpenGaussDialect_psycopg2(PGDialect_psycopg2):
 
     @util.memoized_property
     def _isolation_lookup(self):
-        extensions = self._psycopg2_extensions()
+        extensions = self._psycopg2_extensions
 
         return {
             "AUTOCOMMIT": extensions.ISOLATION_LEVEL_AUTOCOMMIT,
@@ -136,6 +134,16 @@ class OpenGaussDialect_psycopg2(PGDialect_psycopg2):
     def _get_server_version_info(self, connection):
         # most of opengauss features are same with postgres 9.2.4
         return (9, 2, 4)
+
+    def get_isolation_level_values(self, dbapi_conn):
+        # note the generic dialect doesn't have AUTOCOMMIT, however
+        # all postgresql dialects should include AUTOCOMMIT.
+        return (
+            "READ COMMITTED",
+            "AUTOCOMMIT",
+            "REPEATABLE READ",
+            "READ UNCOMMITTED",
+        )
 
 
 dialect = OpenGaussDialect_psycopg2

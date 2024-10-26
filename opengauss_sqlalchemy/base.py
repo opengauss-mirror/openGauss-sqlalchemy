@@ -7,9 +7,9 @@
 # This module is part of SQLAlchemy and is released under
 # the MIT License: https://www.opensource.org/licenses/mit-license.php
 
-from sqlalchemy.dialects.postgresql.base import IDX_USING, PGDDLCompiler, PGIdentifierPreparer
+from sqlalchemy.dialects.postgresql.base import IDX_USING, PGCompiler, PGDDLCompiler, PGIdentifierPreparer
 from sqlalchemy.dialects.postgresql.base import RESERVED_WORDS as _RESERVED_WORDS
-from sqlalchemy.sql import coercions, expression, roles
+from sqlalchemy.sql import coercions, expression, roles, elements
 from sqlalchemy import types
 
 
@@ -51,10 +51,85 @@ RESERVED_WORDS = _RESERVED_WORDS.union(
 )
 
 
+class OpenGaussCompiler(PGCompiler):
+    def get_cte_preamble(self, recursive):
+        return "WITH RECURSIVE"
+
+    def visit_on_conflict_do_nothing(self, on_conflict, **kw):
+        return "ON DUPLICATE KEY UPDATE NOTHING"
+
+    def visit_on_conflict_do_update(self, on_conflict, **kw):
+        clause = on_conflict
+
+        target_text = self._on_conflict_target(on_conflict, **kw)
+
+        action_set_ops = []
+
+        set_parameters = dict(clause.update_values_to_set)
+        # create a list of column assignment clauses as tuples
+
+        insert_statement = self.stack[-1]["selectable"]
+        cols = insert_statement.table.c
+        for c in cols:
+            col_key = c.key
+
+            if col_key in set_parameters:
+                value = set_parameters.pop(col_key)
+            elif c in set_parameters:
+                value = set_parameters.pop(c)
+            else:
+                continue
+
+            if coercions._is_literal(value):
+                value = elements.BindParameter(None, value, type_=c.type)
+
+            else:
+                if (
+                        isinstance(value, elements.BindParameter)
+                        and value.type._isnull
+                ):
+                    value = value._clone()
+                    value.type = c.type
+            value_text = self.process(value.self_group(), use_schema=False)
+
+            key_text = self.preparer.quote(c.name)
+            action_set_ops.append("%s = %s" % (key_text, value_text))
+
+        # check for names that don't match columns
+        if set_parameters:
+            util.warn(
+                "Additional column names not matching "
+                "any column keys in table '%s': %s"
+                % (
+                    self.current_executable.table.name,
+                    (", ".join("'%s'" % c for c in set_parameters)),
+                )
+            )
+            for k, v in set_parameters.items():
+                key_text = (
+                    self.preparer.quote(k)
+                    if isinstance(k, str)
+                    else self.process(k, use_schema=False)
+                )
+                value_text = self.process(
+                    coercions.expect(roles.ExpressionElementRole, v),
+                    use_schema=False,
+                )
+                action_set_ops.append("%s = %s" % (key_text, value_text))
+
+        action_text = ", ".join(action_set_ops)
+        if clause.update_whereclause is not None:
+            action_text += " WHERE %s" % self.process(
+                clause.update_whereclause, include_table=True, use_schema=False
+            )
+
+        return "ON DUPLICATE KEY UPDATE %s" % (action_text)
+
+
 class OpenGaussDDLCompiler(PGDDLCompiler):
     """DDLCompiler for opengauss"""
 
-    def visit_create_index(self, create):
+    def visit_create_index(self, create, **kw):
         preparer = self.preparer
         index = create.element
         self._verify_index_table(index)
@@ -143,7 +218,7 @@ class OpenGaussDDLCompiler(PGDDLCompiler):
 
         return "".join(text_contents)
 
-    def visit_drop_index(self, drop):
+    def visit_drop_index(self, drop, **kw):
         index = drop.element
 
         text_contents = ["\nDROP INDEX "]
