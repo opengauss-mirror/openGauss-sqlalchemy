@@ -16,6 +16,11 @@ This project has been tested with test suites of SQLAlchemy.
 
     > https://github.com/opengauss-mirror/openGauss-connector-python-psycopg2
 
+### NOTE
+
+Using unmatched psycopg2 may cause part of the autoescape test cases in
+ SQLAlchemy version 2.0+ failed.
+
 ## Installation
 
 ```

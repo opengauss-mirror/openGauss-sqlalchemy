@@ -17,7 +17,8 @@
     > https://github.com/opengauss-mirror/openGauss-connector-python-psycopg2
 
 ### 注意：
-使用psycopg2 for opengauss会导致Sqlalchemy2.0部分autoescape相关测试用例不通过。
+
+使用不匹配的psycopg2会导致SQLAlchemy2.0部分autoescape相关测试用例不通过。
 
 若需要使用autoescape相关功能，请保证环境中正确安装openGauss，并且通过修改变量LD_LIBRARY_PATH保证pg_config来自openGauss。
 
