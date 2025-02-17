@@ -187,6 +187,25 @@ Table("some_talbe", ..., opengauss_partition_by="RANGE(column_name) ...",
     opengauss_enable_row_movement=True)
 ```
 
+### 向量数据类型
+- vector data type with `select`
+```
+tbl = Table(
+    "test",
+    m,
+    Column("id", Integer),
+    Column("bit_embedding", BIT(3)),
+    Column("sparsevec_embedding", SPARSEVEC(3)),
+    Column("vector_embedding", VECTOR(3))
+)
+
+select(tbl.c.id).order_by(tbl.c.bit_embedding.jaccard_distance('110'))
+
+select(tbl.c.id).order_by(tbl.c.sparsevec_embedding.l2_distance(SparseVector([1, 2, 3])))
+
+select(tbl.c.id).order_by(tbl.c.vector_embedding.l2_distance([1,2,3]))
+```
+
 ## OpenGauss特性的使用方式（集中式）
 
 ### 索引

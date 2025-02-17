@@ -23,7 +23,7 @@ setup(
     url="https://gitee.com/opengauss/openGauss-sqlalchemy",
     license="MIT",
     classifiers=[
-        "Development Status :: 5 - PRODUCTION/STABLE",
+        "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
@@ -35,7 +35,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Topic :: Database :: Front-Ends",
     ],
-    packages=find_namespace_packages(exclude=["test"]),
+    packages=find_namespace_packages(exclude=["test", "build"]),
     include_package_data=True,
     install_requires=["sqlalchemy<=2.0.23"],
     entry_points={
