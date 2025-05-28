@@ -21,3 +21,6 @@ registry.register(
 registry.register(
     "opengauss.dc_psycopg2", "opengauss_sqlalchemy.dc_psycopg2", "OpenGaussDialect_dc_psycopg2"
 )
+registry.register(
+    "opengauss.asyncpg", "opengauss_sqlalchemy.asyncpg", "OpenGaussDialect_asyncpg"
+)

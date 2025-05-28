@@ -11,8 +11,9 @@ from alembic.ddl.base import RenameTable
 from alembic.ddl.postgresql import PostgresqlColumnType
 from sqlalchemy import types
 from sqlalchemy.testing import fixtures
+from unittest.mock import MagicMock, patch
 
-from opengauss_sqlalchemy import psycopg2
+from opengauss_sqlalchemy import psycopg2, asyncpg
 
 
 class AlembicDialectTest(fixtures.TestBase):
@@ -34,3 +35,19 @@ class AlembicDialectTest(fixtures.TestBase):
             PostgresqlColumnType("table_name", "column_name", types.INTEGER)
         )
         assert sql == "ALTER TABLE table_name ALTER COLUMN column_name TYPE INTEGER "
+    
+    def test_configure_migration_context_async(self):
+        context = migration.MigrationContext.configure(
+            url='opengauss+asyncpg://mydb'  
+        )
+        assert isinstance(context.dialect, asyncpg.dialect) 
+
+    def test_get_server_version_info_async(self):
+        mock_conn = MagicMock()
+        test_cases = [
+            ("openGauss 5.0.0 build 89df5be5", (9, 2, 4))
+        ]
+        for version_str, expected in test_cases:
+            mock_conn.exec_driver_sql.return_value.scalar.return_value = version_str
+            result = asyncpg.dialect()._get_server_version_info(mock_conn)
+            assert result == expected
