@@ -43,6 +43,7 @@ setup(
             "opengauss = opengauss_sqlalchemy.psycopg2:OpenGaussDialect_psycopg2",
             "opengauss.psycopg2 = opengauss_sqlalchemy.psycopg2:OpenGaussDialect_psycopg2",
             "opengauss.dc_psycopg2 = opengauss_sqlalchemy.dc_psycopg2:OpenGaussDialect_dc_psycopg2",
+            "opengauss.asyncpg = opengauss_sqlalchemy.asyncpg:OpenGaussDialect_asyncpg",
         ]
     },
 )

@@ -9,10 +9,16 @@
 
 import numpy as np
 from struct import pack, unpack_from
+import ast
 
 
 class Vector:
     def __init__(self, value):
+        if isinstance(value, str):
+            try:
+                value = ast.literal_eval(value)
+            except ValueError:
+                raise ValueError("Invalid string format for conversion to list") 
         # asarray still copies if same dtype
         if not isinstance(value, np.ndarray) or value.dtype != '>f4':
             value = np.asarray(value, dtype='>f4')
