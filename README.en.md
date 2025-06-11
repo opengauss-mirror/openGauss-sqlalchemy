@@ -46,6 +46,15 @@ Create an DSN(Data Source Name) that points to your OpenGauss database.
 # Or
 >>> sa.create_engine('opengauss+dc_psycopg2://username:password@/database_name?host=hostA:portA&host=hostB:portB')
 ```
+Version 2.4.0 introduces an asynchronous connection interface. Due to the specifics of asyncpg, when using asyncpg connections with the vector data type, you need to register this data type. A code example is provided below:
+```
+from opengauss_sqlalchemy.register_async import register_vector
+engine = create_async_engine("opengauss+asyncpg://username:password@host:port/database_name")
+
+@event.listens_for(engine.sync_engine, "connect")
+def connect(dbapi_connection, connection_record):
+    dbapi_connection.run_async(register_vector)
+```
 
 See the [OpenGauss DeveloperGuide](https://docs.opengauss.org/en/docs/3.1.0/docs/BriefTutorial/BriefTutorial.html) for more infomation.
 

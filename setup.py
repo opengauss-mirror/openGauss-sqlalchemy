@@ -20,7 +20,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Jia Junsu",
     author_email="jiajunsu@huawei.com",
-    url="https://gitee.com/opengauss/openGauss-sqlalchemy",
+    url="https://gitcode.com/opengauss/openGauss-sqlalchemy",
     license="MIT",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -33,11 +33,15 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Database :: Front-Ends",
     ],
     packages=find_namespace_packages(exclude=["test", "build"]),
     include_package_data=True,
-    install_requires=["sqlalchemy<=2.0.23"],
+    install_requires=["sqlalchemy"],
     entry_points={
         "sqlalchemy.dialects": [
             "opengauss = opengauss_sqlalchemy.psycopg2:OpenGaussDialect_psycopg2",
