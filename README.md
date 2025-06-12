@@ -81,6 +81,17 @@ openGauss=# alter user <usrname> with password <yourpassword>;
 >>> sa.create_engine('opengauss+dc_psycopg2://username:password@/database_name?host=hostA:portA&host=hostB:portB')
 ```
 
+2.4.0版本新增异步连接接口，由于asyncpg的特殊性，在使用asyncpg连接并且使用vector类型时需要注册该数据类型，代码示例如下：
+```
+from opengauss_sqlalchemy.register_async import register_vector
+engine = create_async_engine("opengauss+asyncpg://username:password@host:port/database_name")
+
+# 绑定事件监听器
+@event.listens_for(engine.sync_engine, "connect")
+def connect(dbapi_connection, connection_record):
+    dbapi_connection.run_async(register_vector)
+```
+
 OpenGauss的数据库开发指南详见 [OpenGauss DeveloperGuide](https://docs.opengauss.org/zh/docs/latest/docs/Developerguide/Developerguide.html)。
 
 ## OpenGauss特性的使用方式（集中式和分布式）
