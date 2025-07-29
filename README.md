@@ -10,7 +10,7 @@
 - psycopg2 for opengauss
 
     从下列地址下载并安装到运行环境中
-    > https://gitee.com/opengauss/openGauss-connector-python-psycopg2
+    > https://gitcode.com/opengauss/openGauss-connector-python-psycopg2
 
     或
 
