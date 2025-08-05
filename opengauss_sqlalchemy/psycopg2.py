@@ -11,7 +11,6 @@ from sqlalchemy import util
 from sqlalchemy.dialects.postgresql.psycopg2 import PGDialect_psycopg2
 from sqlalchemy.ext.compiler import compiles
 from collections import defaultdict
-from sqlalchemy.engine.reflection import ReflectionDefaults
 import functools
 
 from opengauss_sqlalchemy.base import OpenGaussDDLCompiler, OpenGaussIdentifierPreparer, OpenGaussCompiler

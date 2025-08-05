@@ -10,7 +10,7 @@ This project has been tested with test suites of SQLAlchemy.
 - psycopg2 for opengauss
 
     Download and install reference
-    > https://gitee.com/opengauss/openGauss-connector-python-psycopg2
+    > https://gitcode.com/opengauss/openGauss-connector-python-psycopg2
 
     or
 
