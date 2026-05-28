@@ -1,74 +1,110 @@
 # openGauss-sqlalchemy
 
-OpenGauss dialect for SQLAlchemy.
+This is the openGauss dialect library that adapts to the SQLAlchemy framework.
 
-This project has been tested with test suites of SQLAlchemy.
+The project has passed the test cases of the SQLAlchemy community.
 
 
-## Dependency for opengauss
+## Runtime Dependencies
 
-- psycopg2 for opengauss
+- `psycopg2 for opengauss`
 
-    Download and install reference
+    Download it from one of the following addresses and install it in the operating environment. Address 1:
     > https://gitcode.com/opengauss/openGauss-connector-python-psycopg2
 
-    or
+    Address 2:
 
     > https://github.com/opengauss-mirror/openGauss-connector-python-psycopg2
 
-### NOTE
+### Notes
 
-Using unmatched psycopg2 may cause part of the autoescape test cases in
- SQLAlchemy version 2.0+ failed.
+Incompatible versions of `psycopg2` may cause SQLAlchemy 2.0 autoescape test cases to fail.
+
+To utilize autoescape features, ensure that openGauss is correctly installed and that `pg_config` points to the openGauss installation by modifying the `LD_LIBRARY_PATH` variable.
+
+```
+# Configure environment variables.
+$ export GAUSSHOME=/home/omm/openGauss-server/mppdb_temp_install
+$ export LD_LIBRARY_PATH=$GAUSSHOME/lib:$LD_LIBRARY_PATH
+
+$ which pg_config
+# The expected result is as follows:
+'/home/omm/openGauss-server/mppdb_temp_install/bin/pg_config'
+
+# Delete psycopg2 for opengauss.
+$ pip install --force-reinstall psycopg2
+
+# If opengauss-sqlalchemy has been installed, reinstall it.
+>>> python setup.py install
+```
+
+Alternatively, install `psycopg2-binary`.
+```
+$ pip uninstall psycopg2
+$ pip install psycopg2-binary
+
+# Change the value of `password_encryption_type` to `1` in the `postgresql.conf` file of the database instance.
+$ vim /datanode/postgresql.conf
+
+# Restart the database.
+$ gs_ctl restart -D /datanode
+
+Change the password.
+$ gsql -d postgres -p <port_num>
+openGauss=# alter user <usrname> with password <yourpassword>;
+```
+
 
 ## Installation
 
 ```
-# From pypi
+# Install the library from PyPI.
 >>> python -m pip install opengauss-sqlalchemy
 
-# From source code
+# Install the library from the local source code.
 >>> python setup.py install
 ```
 
-## Usage
+## Usage Guide
 
-Create an DSN(Data Source Name) that points to your OpenGauss database.
+Create a database in openGauss.
 
 ```
 >>> import sqlalchemy as sa
-# With centralized mode
+# Access the database in centralized mode. Method 1:
 >>> sa.create_engine('opengauss://username:password@host:port/database_name')
-# Or
+# Method 2:
 >>> sa.create_engine('opengauss+psycopg2://username:password@host:port/database_name')
-# With distributed mode
+# Access the database in distributed mode. Method 1:
 >>> sa.create_engine('opengauss+dc_psycopg2://username:password@host:port/database_name')
-# Or
+# Method 2:
 >>> sa.create_engine('opengauss+dc_psycopg2://username:password@/database_name?host=hostA:portA&host=hostB:portB')
 ```
-Version 2.4.0 introduces an asynchronous connection interface. Due to the specifics of asyncpg, when using asyncpg connections with the vector data type, you need to register this data type. A code example is provided below:
+
+Version 2.4.0 introduces the asynchronous connection interface. Due to the specific nature of `asyncpg`, you must register the vector data type when using it. Refer to the code example below:
 ```
 from opengauss_sqlalchemy.register_async import register_vector
 engine = create_async_engine("opengauss+asyncpg://username:password@host:port/database_name")
 
+# Bind an event listener.
 @event.listens_for(engine.sync_engine, "connect")
 def connect(dbapi_connection, connection_record):
     dbapi_connection.run_async(register_vector)
 ```
 
-See the [OpenGauss DeveloperGuide](https://docs.opengauss.org/en/docs/3.1.0/docs/BriefTutorial/BriefTutorial.html) for more infomation.
+For details about the openGauss database development guide, see [openGauss Developer Guide](https://docs.opengauss.org/en/docs/latest/docs/Developerguide/Developerguide.html).
 
-## Features For Centralized and Distributed OpenGauss
+## Usage of openGauss Features (Centralized and Distributed)
 
-### Index
+### Indexing
 
-- Index with `USING method`
+- Indexing with the `USING` method
 ```
 tbl = Table("testtbl", m, Column("data", String))
 Index("test_idx1", tbl.c.data, opengauss_using="btree")
 ```
 
-- Index with column expression
+- Indexing with the `column` expression
 ```
 tbl = Table(
     "testtbl",
@@ -85,7 +121,7 @@ Index(
 )
 ```
 
-- Index with `LOCAL`, only available for index on a partitioned table
+- Indexing with `LOCAL`, only available for indexes on a partitioned table
 ```
 tbl = Table(
     "testtbl",
@@ -105,19 +141,19 @@ Index(
 )
 ```
 
-- Index with `WITH`
+- Indexing with `WITH`
 ```
 tbl = Table("testtbl", m, Column("data", String))
 Index("test_idx1", tbl.c.data, opengauss_with={"fillfactor": 50})
 ```
 
-- Index with `TABLESPACE`
+- Indexing with `TABLESPACE`
 ```
 tbl = Table("testtbl", m, Column("data", String))
 Index("test_idx1", tbl.c.data, opengauss_tablespace="sometablespace")
 ```
 
-- Index with `WHERE`, unsupported for index on a partitioned table
+- Indexing with `WHERE`, unsupported for indexes on a partitioned table
 ```
 tbl = Table("testtbl", m, Column("data", Integer))
 Index(
@@ -127,43 +163,43 @@ Index(
 )
 ```
 
-### Table
+### Tables
 
-- Table with `WITH ({storage_parameter = value})`
+- The table with `WITH ({storage_parameter = value})`
 ```
 Table("some_table", ..., opengauss_with={"storage_parameter": "value"})
 ```
 
-- Table with `ON COMMIT`
+- The table with `ON COMMIT`
 ```
 Table("some_talbe", ..., prefixes=["TEMPORARY"], opengauss_on_commit="PRESERVE ROWS")
 ```
 
-- Table with `COMPRESS`
+- The table with `COMPRESS`
 ```
 Table("some_talbe", ..., opengauss_with={"ORIENTATION": "COLUMN"}, opengauss_compress=True)
 ```
 
-- Table with `TABLESPACE tablespace_name`
+- The table with `TABLESPACE tablespace_name`
 ```
 Table("some_talbe", ..., opengauss_tablespace="tablespace_name")
 ```
 
-- Table with `PARTITION BY`
+- The table with `PARTITION BY`
 ```
 Table("some_talbe", ..., opengauss_partition_by="RANGE(column_name) "
         "(PARTITION P1 VALUES LESS THAN(10), "
         "PARTITION P2 VALUES LESS THAN(MAXVALUE))")
 ```
 
-- Table with `ENABLE ROW MOVEMENT`
+- The table with `ENABLE ROW MOVEMENT`
 ```
 Table("some_talbe", ..., opengauss_partition_by="RANGE(column_name) ...",
     opengauss_enable_row_movement=True)
 ```
 
-### Vector Data Type
-- vector data type with `select`
+### Vector Data Types
+- The vector data type with `select`
 ```
 tbl = Table(
     "test",
@@ -181,56 +217,56 @@ select(tbl.c.id).order_by(tbl.c.sparsevec_embedding.l2_distance(SparseVector([1,
 select(tbl.c.id).order_by(tbl.c.vector_embedding.l2_distance([1,2,3]))
 ```
 
-## Features For Centralized OpenGauss
+## Usage of openGauss Features (Centralized)
 
-### Index
+### Indexing
 
-- Index with `CONCURRENTLY`
+- Indexing with `CONCURRENTLY`
 ```
 tbl = Table("testtbl", m, Column("data", Integer))
 Index("test_idx1", tbl.c.data, opengauss_concurrently=True)
 ```
 
-## Features For Distributed OpenGauss
+## Usage of openGauss Features (Distributed)
 
-### TABLE
+### Tables
 
-- Table with `DISTRIBUTE BY`
+- The table with `DISTRIBUTE BY`
 ```
 Table("some_table", ..., opengauss_distribute_by="HASH(column_name)")
 ```
-NOTE: table without distributable columns will be set with "DISTRIBUTE BY REPLICATION"
+Notes: Tables without distributable columns will be set with `DISTRIBUTE BY REPLICATION`.
 
-- Table with `TO GROUP`
+- The table with `TO GROUP`
 ```
 Table("some_table", ..., opengauss_to="GROUP group_name")
 ```
 
 
-## Releasing
+## Release Guide
 
-### Build python wheel
+### Building a Python Wheel Package
 ```
 >>> python -m pip install wheel
 >>> python setup.py bdist_wheel
 ```
 
-### Testing
+### Performing a Local Test
 
-1. Set environment with `export LD_LIBRARY_PATH=` and `export PYTHONPATH=` to your path of package `psycopg2`.
-2. Install opengauss and update configuration, see "Steps to install and config opengauss for testing".
-3. Execute `tox -e py38`.
+1. Set the environment variables `export LD_LIBRARY_PATH=` and `export PYTHONPATH=` to the directory where the `psycopg2` package is located in the test environment.
+2. Install openGauss and modify the database configuration. For details, see "Installing and Configuring the openGauss Commissioning Environment".
+3. Run the `tox -e py38` command.
 
 
-### Steps to install and config centralized opengauss for testing
+### Installing and Configuring the openGauss Commissioning Environment
 
-1. Add OS user for opengauss ```>>> useradd omm -g dbgrp```
-2. Change owner of opengauss dir ```>>> chown omm:dbgrp ${db_dir} -R```
-3. Switch to user omm ```>>> su - omm```
-4. Install opengauss ```>>> sh install.sh -w ${db_password} -p 37200```
-5. Start opengauss ```>>> gs_ctl start -D ${db_dir}/data/single_node/```
-6. Login opengauss ```>>> gsql -d postgres -p 37200```
-7. Create database user and create database & schema for testing
+1. Add the openGauss OS user `>>> useradd omm -g dbgrp`.
+2. Change the user and user group of the openGauss directory `>>> chown omm:dbgrp ${db_dir} -R`.
+3. Switch to the new system user `>>> su - omm`.
+4. Install openGauss `>>> sh install.sh -w ${db_password} -p 37200`.
+5. Start openGauss `>>> gs_ctl start -D ${db_dir}/data/single_node/`.
+6. Log in to openGauss `>>> gsql -d postgres -p 37200`.
+7. Create a database user, test database, and test schema.
 ```
 openGauss=# create user scott identified by 'Tiger123';
 openGauss=# create database test with owner=scott encoding='utf8' template=template0;
@@ -241,7 +277,7 @@ test=# create schema test_schema AUTHORIZATION scott;
 test=# create schema test_schema_2 AUTHORIZATION scott;
 test=# \q
 ```
-8. Config opengauss
+8. Modify the openGauss configuration.
 ```
 >>> gs_guc set -D ${db_dir}/data/single_node/ -c "ssl=off"
 >>> gs_guc set -D ${db_dir}/data/single_node/ -c "max_prepared_transactions = 100"
@@ -251,7 +287,7 @@ test=# \q
 >>> gs_ctl stop -D ${db_dir}/data/single_node/
 >>> gs_tl start -D ${db_dir}/data/single_node/
 ```
-9. Optional: enable log_statement
+9. (Optional) Enable SQL logging.
 ```
 >>> gs_guc set -D ${db_dir}/data/single_node/ -c "log_min_error_statement = error"
 >>> gs_guc set -D ${db_dir}/data/single_node/ -c "log_statement = 'all'"
