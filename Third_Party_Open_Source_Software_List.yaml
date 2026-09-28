@@ -1,0 +1,11 @@
+sqlalchemy:
+  cpeName: sqlalchemy
+  groupId: sqlalchemy
+  url: https://github.com/sqlalchemy/sqlalchemy
+  version: 2.0.23
+
+pgvector-python:
+  cpeName: pgvector-python
+  groupId: pgvector
+  url: https://github.com/pgvector/pgvector-python
+  version: e138e55d187c1b03f9b827c6849aabb1f9697eaf
